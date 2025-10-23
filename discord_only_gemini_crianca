@@ -1,0 +1,96 @@
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types 
+import discord
+import os
+
+# Load environment variables from a .env file
+load_dotenv()
+# Utiliza a chave da API do Gemini. 
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') 
+
+# Inicializa o cliente Gemini
+try:
+    genai_client = genai.Client(api_key=GEMINI_API_KEY) 
+except Exception as e:
+    print(f"Erro ao inicializar o cliente Gemini: {e}")
+    exit()
+
+
+# ask gemini - respond like a 5-year-old child
+def call_gemini(question):
+    # O modelo 'gemini-2.5-flash' é ótimo para respostas rápidas e criativas
+    model_name = "gemini-2.5-flash" 
+    
+    # NOVO AJUSTE: Instrução de sistema para definir o papel (Criança de 5 anos)
+    system_instruction = "Você é uma criança muito curiosa de 5 anos. Responda a todas as perguntas usando linguagem simples, frases curtas, e um tom muito animado e inocente. Fale sobre brinquedos, cores, animais e coisas divertidas. Use emojis."
+
+    try:
+        # Chama a API do Gemini
+        response = genai_client.models.generate_content(
+            model=model_name,
+            contents=[question], 
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction
+            )
+        )
+
+        # Acessa o texto da resposta
+        response_text = response.text
+        print(response_text)
+        return response_text
+        
+    except Exception as e:
+        print(f"Erro ao chamar a API do Gemini: {e}")
+        return "Oh, oh! Aconteceu um 'bu-bu' e não consegui responder. 😭"
+
+# ---
+#  Set up intents
+intents = discord.Intents.default()
+intents.message_content = True 
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print('We have logged in as {0.user}'.format(client))
+
+@client.event
+async def on_message(message):
+    # Ignora mensagens enviadas pelo próprio bot
+    if message.author == client.user:
+        return
+
+    # NOVO AJUSTE: Saudação de criança
+    if message.content.startswith('!hello'):
+        await message.channel.send('Oii! Vamos brincar? 😊') 
+
+    # Comando principal para perguntar ao Gemini
+    if message.content.startswith('$question'):
+        if len(message.content.split("$question", 1)) < 2:
+             await message.channel.send("Tia/Tio, você esqueceu a pergunta!")
+             return
+             
+        print(f"Message: {message.content}")
+        # Tratamento de string para extrair a pergunta
+        message_content = message.content.split("$question", 1)[1].strip() 
+        
+        if not message_content:
+            await message.channel.send("Não entendi a pergunta, fala de novo? 🤔")
+            return
+            
+        print(f"Question: {message_content}")
+        
+        # Chama a função Gemini
+        response = call_gemini(message_content)
+        
+        print(f"Assistant: {response}")
+        print("---")
+        
+        await message.channel.send(response)
+
+# Inicia o bot do Discord.
+TOKEN = os.getenv('TOKEN')
+if TOKEN:
+    client.run(TOKEN)
+else:
+    print("ERRO: O TOKEN do Discord não foi encontrado. Verifique seu arquivo .env.")
